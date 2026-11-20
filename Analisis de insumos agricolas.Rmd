@@ -1,0 +1,232 @@
+---
+title: "Analisis de insumos Agrícolas mediante Diseño en Cuadrado Latino"
+author: "Jesus Cabeza — Analítica de Decisiones"
+date: "2025-11-19"
+output:
+  html_document:
+    toc: true
+    toc_depth: 3
+    toc_float: true
+    collapsed: true
+    smooth_scroll: true
+    theme: journal
+    highlight: kate
+    df_print: paged
+    code_folding: hide
+  pdf_document:
+    toc: true
+    toc_depth: 3
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  echo = TRUE,
+  message = FALSE,
+  warning = FALSE
+)
+```
+
+# ¿Dónde poner los recursos?
+
+En una operación agrícola, cada campaña exige asignar presupuesto a insumos que compiten por capital y atención operativa: variedades de semilla, programas de fertilización y esquemas de protección fitosanitaria.Elegir a ciegas o por costumbre, precio unitario o recomendación comercial sin prueba controlada, expone al productor a dos riesgos costosos
+
+1. Subinversión o mala asignación: Gastar de más en un insumo de bajo retorno marginal mientras se descuida el factor que realmente impulsa el rendimiento.
+
+2. Confusión de efectos: Atribuir una buena cosecha a una semilla o un plaguicida cuando en realidad el resultado respondió a la fertilización
+
+Este estudio aborda el problema desde una óptica de inversión basada en evidencia: evaluamos 4 opciones de semilla ($S_1, S_2, S_3, S_4$), 4 opciones de fertilizante ($F_1, F_2, F_3, F_4$) y 4 opciones de plaguicida ($P_1, P_2, P_3, P_4$) bajo un Diseño en Cuadrado Latino (DCL) $4 \times 4$. Este arreglo permite aislar el efecto de cada factor controlando simultáneamente dos fuentes de variación, entregando criterios estadísticos claros para decidir qué insumos priorizar.
+
+# Diseño en Cuadrado Latino
+
+## Estructura y regla de asignación
+
+
+Un Cuadrado Latino de orden $p = 4$ organiza $N = p^2 = 16$ unidades experimentales en una matriz de $4$ filas y $4$ columnas. Cada combinación de fertilizante (filas) y plaguicida (columnas) recibe una única semilla (tratamiento principal), cumpliendo que cada semilla aparezca una y solo una vez en cada fila y en cada columna.
+
+Esto evita que un fertilizante o un plaguicida queden sistemáticamente ligados a una misma semilla, reduciendo el sesgo de selección al comparar opciones adicional a esto El modelo asume aditividad entre los efectos principales de filas, columnas y tratamientos es decir el modelo asu qye no existen interacciones relevantes entre los factores (ferilizante y plaguicida).
+
+# Modelo estadístico y partición de la variabilidad
+
+
+El rendimiento observado $y_{ijk}$ en la fila $i$, columna $j$ y tratamiento $k$ se modela como:
+
+$$y_{ijk} = \mu + \alpha_i + \tau_j + \beta_k + \varepsilon_{ijk}, \quad i, j, k = 1, 2, \dots, p$$
+
+donde:
+
+$\mu$ es la media global del rendimiento,
+
+$\alpha_i$ representa el efecto del $i$-ésimo nivel de fertilizante (bloque fila),
+
+$\tau_j$ representa el efecto del $j$-ésimo nivel de semilla (tratamiento de interés),
+
+$\beta_k$ representa el efecto del $k$-ésimo nivel de plaguicida (bloque columna),
+
+$\varepsilon_{ijk} \sim NID(0, \sigma^2)$ es el error aleatorio (independiente, normal, media cero y varianza constante).
+
+Bajo la hipótesis nula de igualdad de medias entre tratamientos ($H_0: \tau_1 = \tau_2 = \dots = \tau_p$), el contraste se evalúa mediante el estadístico $F$ con grados de libertad $(p-1)$ en el numerador y $(p-2)(p-1)$ en el denominador:La suma de cuadrados total ($SC_T$) se descompone en las fuentes de variación del diseño:con sus respectivos grados de libertad.
+
+
+# Análisis Estadístico
+
+
+A continuación cargamos el conjunto de datos experimental y visualizamos el comportamiento del rendimiento a lo largo de las combinaciones de fertilizante y plaguicida, identificando qué semilla se aplicó en cada celda
+
+```{r}
+library(readxl)
+library(ggplot2)
+library(car)
+library(agricolae)
+```
+```{r}
+DCL <- read_excel("C:/Users/acerc/OneDrive/Escritorio/Dropbox/Diseño de experimentos/DCL.xlsx")
+DCL$Abono <- factor(DCL$Abono)
+DCL$Insecticida <- factor(DCL$Insecticida)
+DCL$Semilla <- factor(DCL$Semilla)
+head(DCL)
+```
+
+
+
+```{r}
+ggplot(DCL, aes(x = Insecticida, y = Abono, fill = Respuesta)) +
+  geom_raster() +
+  geom_text(
+    aes(label = paste0(toupper(Semilla), "\n(", Respuesta, ")")),
+    color = "white",
+    size = 3.6,
+    fontface = "bold"
+  ) +
+  scale_fill_gradient(low = "blue", high = "red") +
+  labs(
+    title = "Mapa de Rendimiento por Fertilizante (Abono) y Plaguicida (Insecticida)",
+    subtitle = "Cada celda indica la semilla evaluada y el rendimiento observado",
+    x = "Opción de Plaguicida (Insecticida)",
+    y = "Opción de Fertilizante (Abono)",
+    fill = "Rendimiento"
+  ) +
+  theme_minimal() +
+  theme(
+    axis.text.x = element_text(size = 11),
+    axis.text.y = element_text(size = 11),
+    plot.title = element_text(hjust = 0.5, size = 13, face = "bold"),
+    plot.subtitle = element_text(hjust = 0.5, size = 10)
+  ) +
+  coord_equal()
+```
+
+
+## Análisis de Varianza (ANOVA)
+
+
+Ajustamos el modelo lineal aditivo para evaluar si existen diferencias significativas asociadas a los fertilizantes, a los plaguicidas o a las semillas.
+
+
+```{r}
+modelo_dcl <- aov(Respuesta ~ Abono + Insecticida + Semilla, data = DCL)
+tabla_anova <- summary(modelo_dcl)
+tabla_anova
+
+f_critico <- qf(0.05, df1 = 3, df2 = 6, lower.tail = FALSE)
+cat("Valor crítico F (alpha = 0.05, gl = 3, 6):", round(f_critico, 4), "\n")
+```
+
+Lectura técnica del ANOVA:
+
+
+Comparamos el estadístico $F$ de cada factor contra el valor crítico $F_{0.05,\, 3,\, 6} \approx `r round(f_critico, 4)`$ (y su respectivo $p$-valor). Los factores cuyo estadístico $F$ supera este umbral (o presentan $p < 0.05$) muestran evidencia estadística de afectar el rendimiento medio.
+
+
+## Validación de supuestos
+
+
+Antes de interpretar contrastes y rankings de opciones, verificamos que los supuestos sobre los residuos del modelo no se vean comprometidos:
+
+Normalidad de residuos (Shapiro-Wilk): $H_0$ indica distribución normal de los errores.
+
+Homocedasticidad (Prueba de Bartlett): $H_0$ indica varianzas homogéneas entre los grupos de tratamiento.
+
+Independencia (Durbin-Watson): Valores cercanos a $2$ sugieren ausencia de autocorrelación serial en los residuos.
+
+
+```{r}
+residuos <- residuals(modelo_dcl)
+
+# 1. Normalidad
+sw_test <- shapiro.test(residuos)
+
+# 2. Homocedasticidad
+bart_test <- bartlett.test(residuos ~ DCL$Semilla)
+chi_critico <- qchisq(0.05, df = 3, lower.tail = FALSE)
+
+# 3. Independencia
+dw_test <- durbinWatsonTest(modelo_dcl)
+
+cat("--- Shapiro-Wilk (Normalidad) ---\n")
+print(sw_test)
+
+cat("\n--- Bartlett (Homocedasticidad) ---\n")
+print(bart_test)
+cat("Valor crítico Chi-cuadrado (alpha = 0.05, gl = 3):", round(chi_critico, 4), "\n")
+
+cat("\n--- Durbin-Watson (Independencia) ---\n")
+print(dw_test)
+```
+
+Normalidad: Se obtiene $W = `r round(sw_test$statistic, 5)`$ con $p\text{-valor} = r round(sw_test$p.value, 4). A $\alpha = 0.05$, no se rechaza $H_0$.
+
+
+Homocedasticidad: Se obtiene $\chi^2_0 = `r round(bart_test$statistic, 4)`$ frente a un valor crítico de r round(chi_critico, 4) ($p\text{-valor} = `r round(bart_test$p.value, 4)`$). No se rechaza la igualdad de varianzas.
+
+
+Independencia: El estadístico de Durbin-Watson es r round(dw_test$dw, 4), cercano a $2$, sin señal de autocorrelación severa en los residuos.
+
+
+
+## Comparaciones múltiples: LSD y ajuste de Bonferroni
+
+
+Cuando el ANOVA detecta diferencias entre niveles, las pruebas post-hoc permiten discernir qué opciones destacan y cuáles se agrupan estadísticamente. Comparamos:
+
+LSD (Least Significant Difference): Mayor potencia para detectar diferencias, pero con mayor probabilidad acumulada de falsos positivos si se hacen múltiples contrastes.
+
+Bonferroni: Más conservadora; ajusta el nivel de significancia dividiendo $\alpha$ entre el número de comparaciones por pares (con 4 niveles hay $\binom{4}{2} = 6$ pares, por lo que $\alpha_{\text{ajustado}} = 0.05 / 6 \approx 0.0083$).
+
+
+Fertilizante / Abono
+
+
+```{r}
+lsd_abono_res <- LSD.test(y = modelo_dcl, trt = "Abono", group = TRUE, console = TRUE)
+plot(lsd_abono_res, main = "Comparación de Medias (LSD) — Fertilizante / Abono")
+
+bonf_abono_res <- LSD.test(y = modelo_dcl, trt = "Abono", p.adj = "bon", group = TRUE, console = TRUE)
+plot(bonf_abono_res, main = "Comparación con Ajuste Bonferroni — Fertilizante / Abono")
+```
+
+
+Semilla
+
+```{r}
+lsd_semilla_res <- LSD.test(y = modelo_dcl, trt = "Semilla", group = TRUE, console = TRUE)
+plot(lsd_semilla_res, main = "Comparación de Medias (LSD) — Semilla")
+
+bonf_semilla_res <- LSD.test(y = modelo_dcl, trt = "Semilla", p.adj = "bon", group = TRUE, console = TRUE)
+plot(bonf_semilla_res, main = "Comparación con Ajuste Bonferroni — Semilla")
+```
+
+
+
+# Conclusiones y Recomendaciones de Inversión
+
+
+
+El contraste entre LSD y Bonferroni confirma diferencias claras entre los niveles extremos y aporta prudencia al agrupar opciones intermedias: LSD identifica más contrastes significativos, mientras que Bonferroni exige mayor margen de evidencia antes de declarar superioridad entre dos insumos cercanos.
+
+En los datos analizados, el nivel de fertilizante a2 y la variedad de semilla s4 sobresalen en rendimiento frente al resto de alternativas evaluadas
+
+Antes de incrementar el gasto en cambios de plaguicida sin respaldo de presión de plaga, se deberia priorizar, validar y escalar las combinaciones ganadoras de semilla y fertilizante en lotes de prueba
+
+Si cambiar de proveedor o formulación implica un desembolso elevado o un riesgo operativo importante, se recomienda utilizar un criterio mas conservador como el de Bonferroni para exigir diferencias robustas antes de migrar a escala comercial.
+
+El rendimiento estadístico identifica qué insumo produce más; para cerrar la decisión financiera, cruza estos grupos de rendimiento con el costo por hectárea, la disponibilidad del insumo y el margen esperado en la operación.
