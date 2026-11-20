@@ -79,7 +79,7 @@ library(car)
 library(agricolae)
 ```
 ```{r}
-DCL <- read_excel("C:/Users/acerc/OneDrive/Escritorio/Dropbox/Diseño de experimentos/DCL.xlsx")
+DCL <- read_excel("https://raw.githubusercontent.com/YizzusH/Analisis-de-insumos-agricolas/main/DCL.xlsx")
 DCL$Abono <- factor(DCL$Abono)
 DCL$Insecticida <- factor(DCL$Insecticida)
 DCL$Semilla <- factor(DCL$Semilla)
